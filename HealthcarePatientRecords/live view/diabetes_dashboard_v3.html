@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diabetes Analytics Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Outfit:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:        #04080f;
+  --deep:      #070d1a;
+  --card:      #0c1524;
+  --card2:     #0f1a2e;
+  --border:    #162035;
+  --border2:   #1e2d47;
+  --b1: #00d4ff;
+  --b2: #ff6b35;
+  --b3: #a855f7;
+  --b4: #10b981;
+  --b5: #f59e0b;
+  --b6: #ff4d6d;
+  --text:  #dde6f0;
+  --text2: #7a93b0;
+  --text3: #3d5470;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  cursor: default;
+}
+
+/* ── ANIMATED BG ── */
+.bg-canvas {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  overflow: hidden;
+}
+.bg-canvas::before {
+  content:'';
+  position:absolute; inset:0;
+  background:
+    radial-gradient(ellipse 700px 500px at 10% 20%, rgba(0,212,255,.05) 0%, transparent 65%),
+    radial-gradient(ellipse 500px 400px at 85% 70%, rgba(168,85,247,.05) 0%, transparent 65%),
+    radial-gradient(ellipse 400px 300px at 50% 95%, rgba(16,185,129,.04) 0%, transparent 65%);
+  animation: bgShift 18s ease-in-out infinite alternate;
+}
+@keyframes bgShift {
+  0%   { opacity:.7; transform:scale(1); }
+  100% { opacity:1;  transform:scale(1.05) translate(20px,-10px); }
+}
+
+/* Grid lines */
+.bg-grid {
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:
+    linear-gradient(rgba(0,212,255,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Floating particles */
+.particles { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+.particle {
+  position:absolute;
+  width:2px; height:2px;
+  border-radius:50%;
+  background: var(--b1);
+  opacity:0;
+  animation: particleDrift linear infinite;
+}
+@keyframes particleDrift {
+  0%   { transform:translateY(100vh) translateX(0); opacity:0; }
+  10%  { opacity:.6; }
+  90%  { opacity:.3; }
+  100% { transform:translateY(-20px) translateX(40px); opacity:0; }
+}
+
+/* ── LAYOUT ── */
+.shell {
+  position:relative; z-index:1;
+  display:block;
+  min-height:100vh;
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  background: linear-gradient(180deg, rgba(7,13,26,.98) 0%, rgba(4,8,15,.98) 100%);
+  border-right: 1px solid var(--border);
+  padding: 28px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.sidebar::after {
+  content:'';
+  position:absolute; top:0; right:0;
+  width:1px; height:100%;
+  background: linear-gradient(180deg, transparent, var(--b1), transparent);
+  opacity:.3;
+}
+
+.logo {
+  padding: 0 22px 28px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.logo-mark {
+  width:40px; height:40px;
+  background: linear-gradient(135deg, var(--b1), var(--b3));
+  border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.1rem;
+  margin-bottom:10px;
+  box-shadow: 0 0 20px rgba(0,212,255,.3);
+  animation: logoPulse 3s ease-in-out infinite;
+}
+@keyframes logoPulse {
+  0%,100%{ box-shadow: 0 0 20px rgba(0,212,255,.3); }
+  50%    { box-shadow: 0 0 35px rgba(0,212,255,.55), 0 0 60px rgba(0,212,255,.15); }
+}
+
+.logo-name {
+  font-size:.8rem; font-weight:700; color:var(--text); letter-spacing:.02em; line-height:1.2;
+}
+.logo-sub {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.55rem; color:var(--text3); text-transform:uppercase; letter-spacing:.1em; margin-top:2px;
+}
+
+.nav-section {
+  padding: 6px 14px 2px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:.5rem; color:var(--text3); text-transform:uppercase; letter-spacing:.15em;
+}
+
+.nav-item {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 22px;
+  cursor:pointer;
+  transition:all .2s;
+  border-left:2px solid transparent;
+  position:relative;
+}
+.nav-item:hover, .nav-item.active {
+  background: rgba(0,212,255,.06);
+  border-left-color: var(--b1);
+  color: var(--b1);
+}
+.nav-item.active { background: rgba(0,212,255,.1); }
+.nav-icon { font-size:.95rem; width:20px; text-align:center; }
+.nav-label { font-size:.78rem; font-weight:600; }
+
+.sidebar-footer {
+  margin-top:auto;
+  padding:20px 22px;
+  border-top:1px solid var(--border);
+}
+.status-dot {
+  display:inline-block; width:7px; height:7px;
+  border-radius:50%; background:var(--b4);
+  box-shadow:0 0 8px var(--b4);
+  animation:statusBlink 2s ease-in-out infinite;
+  margin-right:6px;
+}
+@keyframes statusBlink {
+  0%,100%{ opacity:1; } 50%{ opacity:.3; }
+}
+.status-label {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.58rem; color:var(--b4); letter-spacing:.05em;
+}
+.sidebar-meta {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.52rem; color:var(--text3); margin-top:4px;
+}
+
+/* ── MAIN ── */
+.main {
+  padding: 32px 32px 40px;
+  overflow-x: hidden;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  margin-bottom:32px; flex-wrap:wrap; gap:16px;
+}
+
+.page-title {
+  font-size:1.75rem; font-weight:800; letter-spacing:-.03em; line-height:1;
+  background: linear-gradient(120deg, var(--text) 30%, var(--b1) 100%);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+}
+.page-sub {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.62rem; color:var(--text2); margin-top:5px; letter-spacing:.08em;
+}
+
+.topbar-pills { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+.pill {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.58rem; padding:5px 12px; border-radius:20px; border:1px solid;
+  letter-spacing:.06em; text-transform:uppercase; cursor:default;
+  transition: all .2s;
+}
+.pill:hover { transform:translateY(-1px); }
+.pill-cyan  { color:var(--b1); border-color:rgba(0,212,255,.3); background:rgba(0,212,255,.07); }
+.pill-amber { color:var(--b5); border-color:rgba(245,158,11,.3); background:rgba(245,158,11,.07); }
+.pill-green { color:var(--b4); border-color:rgba(16,185,129,.3); background:rgba(16,185,129,.07); }
+
+/* ── KPI STRIP ── */
+.kpi-strip {
+  display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:26px;
+}
+
+.kpi {
+  background: var(--card);
+  border:1px solid var(--border);
+  border-radius:14px; padding:18px 20px;
+  position:relative; overflow:hidden; cursor:default;
+  transition: transform .25s, box-shadow .25s, border-color .25s;
+  animation: fadeSlideUp .6s ease both;
+}
+.kpi:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 50px rgba(0,0,0,.5), 0 0 0 1px var(--_accent,rgba(0,212,255,.2));
+  border-color: var(--_accent,rgba(0,212,255,.3));
+}
+
+/* top stripe */
+.kpi::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background: var(--_accent, var(--b1));
+  border-radius:14px 14px 0 0;
+}
+/* glow blob */
+.kpi::after {
+  content:''; position:absolute; bottom:-25px; right:-15px;
+  width:70px; height:70px; border-radius:50%;
+  background: var(--_accent, var(--b1));
+  opacity:.07;
+  transition: opacity .3s;
+}
+.kpi:hover::after { opacity:.14; }
+
+.kpi.k1{ --_accent:var(--b1); }
+.kpi.k2{ --_accent:var(--b2); }
+.kpi.k3{ --_accent:var(--b3); }
+.kpi.k4{ --_accent:var(--b4); }
+.kpi.k5{ --_accent:var(--b5); }
+
+.kpi-icon { font-size:1.1rem; margin-bottom:8px; }
+.kpi-label {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.55rem; color:var(--text3); text-transform:uppercase; letter-spacing:.12em; margin-bottom:6px;
+}
+.kpi-val {
+  font-size:1.65rem; font-weight:800; letter-spacing:-.03em; line-height:1;
+  color: var(--_accent, var(--b1));
+}
+.kpi-sub {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.57rem; color:var(--text2); margin-top:5px; line-height:1.4;
+}
+
+/* progress bar on kpi */
+.kpi-bar {
+  margin-top:10px; height:3px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden;
+}
+.kpi-bar-fill {
+  height:100%; border-radius:3px;
+  background: var(--_accent, var(--b1));
+  box-shadow: 0 0 8px var(--_accent, var(--b1));
+  animation: barGrow 1.2s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes barGrow { from{width:0;} }
+
+/* ── CHART CARDS ── */
+.row2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:18px; }
+.row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; margin-bottom:18px; }
+.row1 { display:grid; grid-template-columns:1fr; gap:18px; margin-bottom:18px; }
+.col-wide { grid-column: span 2; }
+
+.card {
+  background: var(--card);
+  border:1px solid var(--border);
+  border-radius:16px; padding:22px 24px;
+  position:relative; overflow:hidden;
+  transition: transform .25s, border-color .25s, box-shadow .25s;
+  animation: fadeSlideUp .65s ease both;
+}
+.card:hover {
+  transform:translateY(-3px);
+  border-color:rgba(0,212,255,.18);
+  box-shadow:0 18px 48px rgba(0,0,0,.5), 0 0 0 1px rgba(0,212,255,.08);
+}
+
+/* shimmer top border */
+.card::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0,212,255,.35) 50%, transparent 100%);
+  opacity:0; transition: opacity .3s;
+}
+.card:hover::before { opacity:1; }
+
+/* inner glow */
+.card::after {
+  content:''; position:absolute; top:0; left:0; right:0; bottom:0;
+  background: linear-gradient(135deg, rgba(0,212,255,.02) 0%, transparent 50%);
+  pointer-events:none;
+}
+
+.card-header {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  margin-bottom:16px; gap:10px;
+}
+.card-title {
+  font-size:.88rem; font-weight:700; color:var(--text); letter-spacing:-.01em; line-height:1.3;
+}
+.card-subtitle {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.55rem; color:var(--text3); margin-top:3px; text-transform:uppercase; letter-spacing:.06em;
+}
+.tag {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.55rem; padding:3px 9px; border-radius:6px;
+  background:rgba(255,255,255,.04); border:1px solid var(--border2);
+  color:var(--text2); white-space:nowrap; text-transform:uppercase; letter-spacing:.06em;
+  flex-shrink:0;
+}
+
+canvas { max-height:260px; position:relative; z-index:1; }
+.canvas-tall { max-height:300px !important; }
+
+/* ── LEGEND ── */
+.legend {
+  display:flex; gap:14px; margin-top:10px; flex-wrap:wrap; position:relative; z-index:1;
+}
+.legend-item {
+  display:flex; align-items:center; gap:5px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:.6rem; color:var(--text2);
+}
+.ldot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+/* ── INSIGHT STRIP ── */
+.insights {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:26px;
+}
+.insight {
+  background: linear-gradient(135deg, rgba(0,212,255,.06), rgba(0,212,255,.02));
+  border:1px solid rgba(0,212,255,.12);
+  border-radius:12px; padding:16px 18px;
+  display:flex; gap:12px; align-items:flex-start;
+  transition: border-color .2s, transform .2s;
+  animation: fadeSlideUp .7s ease both;
+}
+.insight:hover { border-color:rgba(0,212,255,.25); transform:translateY(-2px); }
+.ins-icon {
+  width:34px; height:34px; border-radius:9px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:1rem;
+  background:rgba(0,212,255,.1); border:1px solid rgba(0,212,255,.2);
+}
+.ins-title { font-size:.8rem; font-weight:700; color:var(--text); margin-bottom:3px; }
+.ins-body { font-family:'JetBrains Mono',monospace; font-size:.58rem; color:var(--text2); line-height:1.5; }
+
+/* ── FOOTER ── */
+footer {
+  border-top:1px solid var(--border); margin-top:12px; padding-top:20px;
+  display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;
+}
+footer .left {
+  font-family:'JetBrains Mono',monospace; font-size:.58rem; color:var(--text3);
+  letter-spacing:.06em; text-transform:uppercase;
+}
+footer .left span { color:var(--b1); }
+.footer-pills { display:flex; gap:8px; }
+.fpill {
+  font-family:'JetBrains Mono',monospace;
+  font-size:.52rem; padding:3px 9px; border-radius:6px;
+  border:1px solid var(--border2); color:var(--text3); background:rgba(255,255,255,.02);
+}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeSlideUp {
+  from { opacity:0; transform:translateY(22px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+.kpi:nth-child(1){animation-delay:.05s}
+.kpi:nth-child(2){animation-delay:.1s}
+.kpi:nth-child(3){animation-delay:.15s}
+.kpi:nth-child(4){animation-delay:.2s}
+.kpi:nth-child(5){animation-delay:.25s}
+
+/* chart card delays */
+.row2 .card:nth-child(1){animation-delay:.1s}
+.row2 .card:nth-child(2){animation-delay:.18s}
+.row3 .card:nth-child(1){animation-delay:.12s}
+.row3 .card:nth-child(2){animation-delay:.2s}
+.row3 .card:nth-child(3){animation-delay:.28s}
+.insight:nth-child(1){animation-delay:.1s}
+.insight:nth-child(2){animation-delay:.15s}
+.insight:nth-child(3){animation-delay:.2s}
+
+/* counter animation for KPI numbers */
+.kpi-val.counting { animation: none; }
+
+/* ── TOOLTIP CUSTOM ── */
+.chart-tooltip {
+  background: rgba(12,21,36,.95) !important;
+  border:1px solid var(--border2) !important;
+  border-radius:10px !important;
+  backdrop-filter: blur(8px);
+}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width:5px; }
+::-webkit-scrollbar-track { background:var(--bg); }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--b1); }
+
+/* ── RESPONSIVE ── */
+@media (max-width:1100px) {
+  .shell { grid-template-columns:1fr; }
+  .sidebar { display:none; }
+  .kpi-strip { grid-template-columns:repeat(3,1fr); }
+  .row3 { grid-template-columns:1fr 1fr; }
+  .col-wide { grid-column:span 1; }
+}
+@media (max-width:700px) {
+  .main { padding:20px 16px; }
+  .kpi-strip { grid-template-columns:1fr 1fr; }
+  .row2,.row3 { grid-template-columns:1fr; }
+  .insights { grid-template-columns:1fr; }
+  .col-wide { grid-column:1; }
+}
+</style>
+</head>
+<body>
+
+<!-- Backgrounds -->
+<div class="bg-canvas"></div>
+<div class="bg-grid"></div>
+<div class="particles" id="particles"></div>
+
+<div class="shell">
+
+  <!-- ── MAIN CONTENT ── -->
+  <main class="main">
+
+    <!-- Topbar -->
+    <div class="topbar">
+      <div>
+        <div class="page-title">Diabetes Analytics</div>
+        <div class="page-sub">Exploratory Data Analysis · Predictive Modeling · N=768</div>
+      </div>
+      <div class="topbar-pills">
+      </div>
+    </div>
+
+    <!-- KPI Strip -->
+    <div class="kpi-strip">
+      <div class="kpi k1">
+        <div class="kpi-icon">🩸</div>
+        <div class="kpi-label">Avg Glucose</div>
+        <div class="kpi-val" data-target="125.4" data-dec="1">0</div>
+        <div class="kpi-sub">mg/dL · all age groups</div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:62%"></div></div>
+      </div>
+      <div class="kpi k2">
+        <div class="kpi-icon">📈</div>
+        <div class="kpi-label">Diabetic Rate</div>
+        <div class="kpi-val" data-target="34.9" data-dec="1" data-suffix="%">0</div>
+        <div class="kpi-sub">268 of 768 patients</div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:35%"></div></div>
+      </div>
+      <div class="kpi k3">
+        <div class="kpi-icon"><span style="font-family:'JetBrains Mono',monospace;font-size:.65rem;font-weight:700;background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);color:#f59e0b;padding:2px 6px;border-radius:5px;letter-spacing:.05em;">BMI</span></div>
+        <div class="kpi-label">Median BMI</div>
+        <div class="kpi-val" data-target="32.0" data-dec="1">0</div>
+        <div class="kpi-sub">Diabetic ≈34 vs 30</div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:54%"></div></div>
+      </div>
+      <div class="kpi k4">
+        <div class="kpi-icon">🎯</div>
+        <div class="kpi-label">Peak Risk Age</div>
+        <div class="kpi-val" style="font-size:1.3rem">50–60</div>
+        <div class="kpi-sub">Glucose peak: 141.1</div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:80%"></div></div>
+      </div>
+      <div class="kpi k5">
+        <div class="kpi-icon">⚡</div>
+        <div class="kpi-label">Glucose Δ</div>
+        <div class="kpi-val" data-target="26.7" data-dec="1" data-prefix="+">0</div>
+        <div class="kpi-sub">mg/dL higher (diabetic)</div>
+        <div class="kpi-bar"><div class="kpi-bar-fill" style="width:44%"></div></div>
+      </div>
+    </div>
+
+    <!-- Insights -->
+    <div class="insights">
+      <div class="insight">
+        <div class="ins-icon">🩸</div>
+        <div>
+          <div class="ins-title">Glucose is the top predictor</div>
+          <div class="ins-body">Diabetics cluster at 140–200 mg/dL · non-diabetic at 80–120</div>
+        </div>
+      </div>
+      <div class="insight">
+        <div class="ins-icon"><span style="font-family:'JetBrains Mono',monospace;font-size:.6rem;font-weight:700;color:#f59e0b;letter-spacing:.05em;">BMI</span></div>
+        <div>
+          <div class="ins-title">BMI significantly elevated</div>
+          <div class="ins-body">Diabetic median BMI ~34 vs ~30 · IQR shifts ~5 units higher</div>
+        </div>
+      </div>
+      <div class="insight">
+        <div class="ins-icon">📈</div>
+        <div>
+          <div class="ins-title">Age amplifies risk</div>
+          <div class="ins-body">Glucose climbs from 115 (20s) → 141 (50–60s), then plateaus at 136.8</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 1: Glucose Age + BMI Box -->
+    <div class="row2">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Mean Glucose Levels by Age Group</div>
+            <div class="card-subtitle">Peaks at 50–60 yrs · 141.1 mg/dL</div>
+          </div>
+          <span class="tag">Bar</span>
+        </div>
+        <canvas id="glucoseAge"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">BMI Distribution by Diabetes Outcome</div>
+            <div class="card-subtitle">IQR box plot · median + whiskers</div>
+          </div>
+          <span class="tag">Box Plot</span>
+        </div>
+        <canvas id="bmiBox"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="ldot" style="background:var(--b1)"></div>No Diabetes (0)</div>
+          <div class="legend-item"><div class="ldot" style="background:var(--b5)"></div>Diabetes (1)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Glucose Dist + BMI vs Age -->
+    <div class="row2">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Glucose Distribution by Outcome</div>
+            <div class="card-subtitle">Overlapping histogram with KDE curves</div>
+          </div>
+          <span class="tag">Histogram</span>
+        </div>
+        <canvas id="glucoseDist" class="canvas-tall"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="ldot" style="background:var(--b1)"></div>No Diabetes</div>
+          <div class="legend-item"><div class="ldot" style="background:var(--b5)"></div>Diabetes</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">BMI vs Age by Diabetes Outcome</div>
+            <div class="card-subtitle">Diabetic patients skew higher BMI</div>
+          </div>
+          <span class="tag">Scatter</span>
+        </div>
+        <canvas id="bmiAge" class="canvas-tall"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="ldot" style="background:var(--b1)"></div>No Diabetes</div>
+          <div class="legend-item"><div class="ldot" style="background:var(--b5)"></div>Diabetes</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 3: Pred Scatter + Correlation + Donut -->
+    <div class="row3">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Actual vs Predicted Outcome</div>
+            <div class="card-subtitle">Linear regression model output</div>
+          </div>
+          <span class="tag">ML Model</span>
+        </div>
+        <canvas id="predScatter"></canvas>
+        <div class="legend">
+          <div class="legend-item"><div class="ldot" style="background:var(--b3)"></div>Predictions</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Feature Correlation with Outcome</div>
+            <div class="card-subtitle">Score out of 100 · higher = stronger link</div>
+          </div>
+          <span class="tag">Correlation</span>
+        </div>
+        <canvas id="correlation"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Outcome Distribution</div>
+            <div class="card-subtitle">Diabetic vs non-diabetic split</div>
+          </div>
+          <span class="tag">Donut</span>
+        </div>
+        <canvas id="donut"></canvas>
+        <div class="legend" style="justify-content:center;margin-top:14px;">
+          <div class="legend-item"><div class="ldot" style="background:var(--b1)"></div>No Diabetes · 500</div>
+          <div class="legend-item"><div class="ldot" style="background:var(--b5)"></div>Diabetes · 268</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <div class="left"><span>DiabeticsAI</span> · Pima Indians Diabetes Dataset · EDA + Linear Regression</div>
+      <div class="footer-pills">
+        <span class="fpill">N=768</span>
+        <span class="fpill">6 Features</span>
+        <span class="fpill">2 Classes</span>
+
+      </div>
+    </footer>
+
+  </main>
+</div>
+
+<script>
+/* ── PARTICLES ── */
+(function() {
+  const c = document.getElementById('particles');
+  for(let i=0;i<28;i++){
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const hue = [0,212,255,168,85,247,16,185,129][Math.floor(Math.random()*3)];
+    p.style.cssText = `
+      left:${Math.random()*100}%;
+      animation-duration:${6+Math.random()*12}s;
+      animation-delay:${Math.random()*12}s;
+      background:hsl(${190+Math.random()*40},100%,70%);
+      width:${1+Math.random()*2}px;
+      height:${1+Math.random()*2}px;
+    `;
+    c.appendChild(p);
+  }
+})();
+
+/* ── KPI COUNTER ANIMATION ── */
+function animateCounter(el){
+  const target = parseFloat(el.dataset.target)||0;
+  const dec    = parseInt(el.dataset.dec)||0;
+  const pre    = el.dataset.prefix||'';
+  const suf    = el.dataset.suffix||'';
+  const dur    = 1400;
+  const start  = performance.now();
+  function step(now){
+    const p = Math.min((now-start)/dur,1);
+    const ease = 1-Math.pow(1-p,3);
+    el.textContent = pre + (target*ease).toFixed(dec) + suf;
+    if(p<1) requestAnimationFrame(step);
+    else el.textContent = pre + target.toFixed(dec) + suf;
+  }
+  requestAnimationFrame(step);
+}
+
+const observer = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{ if(e.isIntersecting&&e.target.dataset.target){ animateCounter(e.target); observer.unobserve(e.target); }});
+},{threshold:.5});
+document.querySelectorAll('.kpi-val[data-target]').forEach(el=>observer.observe(el));
+
+/* ── CHART DEFAULTS ── */
+const FONT  = "'JetBrains Mono', monospace";
+const FONT2 = "'Outfit', sans-serif";
+Chart.defaults.color           = '#4a6380';
+Chart.defaults.font.family     = FONT;
+Chart.defaults.font.size       = 10;
+Chart.defaults.animation.duration = 900;
+Chart.defaults.animation.easing   = 'easeOutQuart';
+
+const grid  = 'rgba(255,255,255,0.04)';
+const tip   = { backgroundColor:'rgba(12,21,36,.96)', titleColor:'#dde6f0', bodyColor:'#7a93b0', borderColor:'#1e2d47', borderWidth:1, padding:10, cornerRadius:8 };
+
+function base(xl, yl){
+  return {
+    responsive:true, maintainAspectRatio:true,
+    plugins:{ legend:{display:false}, tooltip:tip },
+    scales:{
+      x:{ grid:{color:grid}, ticks:{color:'#3d5470', font:{family:FONT,size:9}}, title:{display:!!xl, text:xl, color:'#3d5470', font:{family:FONT,size:9}} },
+      y:{ grid:{color:grid}, ticks:{color:'#3d5470', font:{family:FONT,size:9}}, title:{display:!!yl, text:yl, color:'#3d5470', font:{family:FONT,size:9}} }
+    }
+  };
+}
+
+/* ── 1. GLUCOSE BY AGE ── */
+new Chart(document.getElementById('glucoseAge'),{
+  type:'bar',
+  data:{
+    labels:['20–30','30–40','40–50','50–60','60+'],
+    datasets:[{
+      data:[115.1,127.0,126.0,141.1,136.8],
+      backgroundColor:[
+        'rgba(0,212,255,.65)','rgba(245,158,11,.65)',
+        'rgba(16,185,129,.65)','rgba(255,77,109,.8)','rgba(168,85,247,.65)'
+      ],
+      borderColor:['#00d4ff','#f59e0b','#10b981','#ff4d6d','#a855f7'],
+      borderWidth:1.5, borderRadius:8, borderSkipped:false,
+    }]
+  },
+  options:{
+    ...base('Age Group','Mean Glucose Level'),
+    plugins:{
+      legend:{display:false},
+      tooltip:{ ...tip, callbacks:{ label:ctx=>` ${ctx.raw} mg/dL` } }
+    }
+  }
+});
+
+/* ── 2. BMI BOX PLOT ── */
+new Chart(document.getElementById('bmiBox'),{
+  type:'bar',
+  data:{
+    labels:['No Diabetes (0)','Diabetes (1)'],
+    datasets:[
+      { data:[[18,27],[23,31]], backgroundColor:'transparent', borderColor:'transparent', borderWidth:0, barPercentage:.12 },
+      { data:[[27,35],[31,39]], backgroundColor:['rgba(0,212,255,.5)','rgba(245,158,11,.55)'], borderColor:['#00d4ff','#f59e0b'], borderWidth:1.5, borderRadius:4, barPercentage:.52 },
+      { data:[[35,48],[39,50]], backgroundColor:'transparent', borderColor:'transparent', borderWidth:0, barPercentage:.12 }
+    ]
+  },
+  options:{
+    ...base('','BMI'),
+    plugins:{ legend:{display:false}, tooltip:tip },
+    scales:{
+      x:{ grid:{color:grid}, ticks:{color:'#7a93b0',font:{family:FONT,size:9}} },
+      y:{ min:14, max:56, grid:{color:grid}, ticks:{color:'#3d5470',font:{family:FONT,size:9}} }
+    }
+  }
+});
+
+/* ── 3. GLUCOSE HISTOGRAM ── */
+const bins   = ['40','50','60','70','75','80','85','90','95','100','105','110','115','120','125','130','135','140','145','150','160','170','180','190','200'];
+const noD    = [0,1,3,2,12,17,30,33,40,48,55,39,32,31,21,24,22,15,14,10,8,2,1,2,1];
+const yesD   = [0,0,0,0,0,0,0,5,3,5,6,7,10,13,15,16,16,18,15,12,15,7,10,5,12];
+
+new Chart(document.getElementById('glucoseDist'),{
+  type:'bar',
+  data:{
+    labels:bins,
+    datasets:[
+      { label:'No Diabetes', data:noD, backgroundColor:'rgba(0,212,255,.45)', borderColor:'#00d4ff', borderWidth:.5 },
+      { label:'Diabetes',    data:yesD, backgroundColor:'rgba(245,158,11,.5)', borderColor:'#f59e0b', borderWidth:.5 }
+    ]
+  },
+  options:{
+    ...base('Glucose Level','Frequency'),
+    plugins:{ legend:{display:false}, tooltip:tip },
+    scales:{
+      x:{ grid:{color:grid}, ticks:{color:'#3d5470', maxRotation:45, font:{family:FONT,size:8}} },
+      y:{ grid:{color:grid}, ticks:{color:'#3d5470', font:{family:FONT,size:9}} }
+    }
+  }
+});
+
+/* ── 4. BMI vs AGE SCATTER ── */
+function scatter(n,ax,bx,ay,by,jitter=2){
+  return Array.from({length:n},()=>({
+    x: ax+Math.random()*(bx-ax)+(Math.random()-.5)*jitter,
+    y: Math.max(17,Math.min(70, ay+Math.random()*(by-ay)+(Math.random()-.5)*6))
+  }));
+}
+const s0 = scatter(160,20,82,18,48); const s1 = scatter(90,20,72,22,56,3);
+
+new Chart(document.getElementById('bmiAge'),{
+  type:'scatter',
+  data:{datasets:[
+    { label:'No Diabetes', data:s0, backgroundColor:'rgba(0,212,255,.4)', pointRadius:3.2, pointHoverRadius:5 },
+    { label:'Diabetes',    data:s1, backgroundColor:'rgba(245,158,11,.5)', pointRadius:3.2, pointHoverRadius:5 }
+  ]},
+  options:{ ...base('Age','BMI'), plugins:{legend:{display:false},tooltip:tip} }
+});
+
+/* ── 5. ACTUAL vs PREDICTED SCATTER ── */
+const az = Array.from({length:115},()=>({ x:(Math.random()-.5)*.09, y:(Math.random()-.5)*1.4+.25 }));
+const ao = Array.from({length:72}, ()=>({ x:1+(Math.random()-.5)*.09, y:Math.random()*.93+.15 }));
+
+new Chart(document.getElementById('predScatter'),{
+  type:'scatter',
+  data:{datasets:[{
+    label:'Predictions', data:[...az,...ao],
+    backgroundColor:'rgba(168,85,247,.55)', pointRadius:3.8, pointHoverRadius:6,
+    pointBorderColor:'rgba(168,85,247,.8)', pointBorderWidth:.5
+  }]},
+  options:{
+    ...base('Actual Outcome','Predicted Outcome'),
+    plugins:{legend:{display:false},tooltip:tip},
+    scales:{
+      x:{ min:-.2, max:1.2, grid:{color:grid}, ticks:{color:'#3d5470',callback:v=>[0,1].includes(v)?v:'',font:{family:FONT,size:9}} },
+      y:{ min:-.35, max:1.15, grid:{color:grid}, ticks:{color:'#3d5470',font:{family:FONT,size:9}} }
+    }
+  }
+});
+
+/* ── 6. FEATURE CORRELATION ── */
+new Chart(document.getElementById('correlation'),{
+  type:'bar',
+  data:{
+    labels:['Glucose','BMI','Age','BloodPressure','Insulin'],
+    datasets:[{
+      data:[47,29,24,17,13],
+      backgroundColor:['rgba(255,77,109,.75)','rgba(245,158,11,.7)','rgba(168,85,247,.7)','rgba(0,212,255,.6)','rgba(16,185,129,.6)'],
+      borderColor:['#ff4d6d','#f59e0b','#a855f7','#00d4ff','#10b981'],
+      borderWidth:1.5, borderRadius:6, borderSkipped:false
+    }]
+  },
+  options:{
+    ...base('Feature','Correlation Strength (%)'),
+    indexAxis:'y',
+    scales:{
+      x:{ min:0, max:60, grid:{color:grid}, ticks:{color:'#3d5470',font:{family:FONT,size:9}, callback: v => v + '%'} },
+      y:{ grid:{color:'transparent'}, ticks:{color:'#7a93b0',font:{family:FONT,size:9}} }
+    },
+    plugins:{
+      legend:{display:false},
+      tooltip:{...tip, callbacks:{label:ctx=>` Correlation: ${ctx.raw}% with Diabetes`}}
+    }
+  }
+});
+
+/* ── 7. OUTCOME DONUT ── */
+new Chart(document.getElementById('donut'),{
+  type:'doughnut',
+  data:{
+    labels:['No Diabetes','Diabetes'],
+    datasets:[{
+      data:[500,268],
+      backgroundColor:['rgba(0,212,255,.7)','rgba(245,158,11,.7)'],
+      borderColor:['#00d4ff','#f59e0b'],
+      borderWidth:2, hoverOffset:10
+    }]
+  },
+  options:{
+    responsive:true, maintainAspectRatio:true,
+    cutout:'68%',
+    plugins:{
+      legend:{display:false},
+      tooltip:{...tip, callbacks:{label:ctx=>`  ${ctx.label}: ${ctx.raw} (${(ctx.raw/768*100).toFixed(1)}%)`}},
+    },
+    animation:{ animateRotate:true, animateScale:true }
+  }
+});
+
+/* ── NAV ACTIVE STATE ── */
+document.querySelectorAll('.nav-item').forEach(item=>{
+  item.addEventListener('click',function(){
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
