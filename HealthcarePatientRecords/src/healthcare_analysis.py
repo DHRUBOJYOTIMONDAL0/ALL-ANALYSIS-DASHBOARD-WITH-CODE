@@ -167,7 +167,7 @@ def bmi_vs_age(df):
 
 def main():
 
-    df = load_data("../data/diabetes.csv")
+    df = load_data("../datasets/diabetes.csv")
 
     df = clean_data(df)
 
